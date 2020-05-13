@@ -88,12 +88,25 @@ while ($array=$queryTablas->fetch()) {
 				$valorUpdate=$valorUpdate.$arr['Field']."=var_".$arr['Field'];
 			}
 		}
+		#armado de listado en tablas relacionadas
+		$varRel=" ";
+		$queryColumns=$pdo->query($relacionTabla."'".$nameTabla."'");
+		if ($queryColumns->rowCount()>0) {
+			$count=1;
+			$varRel=$varRel." t";
+			while ($rel=$queryColumns->fetch()) {
+				$count=$count+1;
+				$varRel=$varRel." inner join ".$rel['referenced_table_name']." t".strval($count)." on "." t".strval($count).".".$rel['referenced_column_name']."= t.".$rel['column_name'];
+			}
+		}
+
+
 		$valorUpdate=$valorUpdate." where ".$nombre_llave."=var_".$nombre_llave;
 		$path="StoresProcedure/AltaBajaModi/".$nameTabla."_am_sp.sql";
 		$pathL="StoresProcedure/List/".$nameTabla."_l_sp.sql";
 		
 		crear_archivo($path,$nameTabla,$llave,$varCol,$varArgs,$valores,$valorUpdate,$pdo);
-		crear_archivo_l($pathL,$nameTabla,$varCol,$pdo);	
+		crear_archivo_l($pathL,$nameTabla,$varCol,$pdo,$varRel);	
 	}
 }
 function crear_archivo($path,$nameTabla,$llave,$varCol,$varArgs,$valores,$valorUpdate,$pdo){
@@ -116,7 +129,7 @@ fclose($fh);
 #$query=$pdo->query($texto);
 }
 
-function crear_archivo_l($path,$nameTabla,$columnas,$pdo){
+function crear_archivo_l($path,$nameTabla,$columnas,$pdo, $varRel){
 $fh = fopen($path, 'w') or die("Se produjo un error al crear el archivo");
 $texto = <<<_END
 DELIMITER $$
@@ -127,7 +140,7 @@ BEGIN
 	declare cantidad int;
 	set cantidad=(select count(*) from {$nameTabla});
 	if cantidad >0 then
-		select {$columnas} from {$nameTabla};
+		select {$columnas} from {$nameTabla} {$varRel};
 	else
 		select 0 as resultado;
 	end if; 	 
