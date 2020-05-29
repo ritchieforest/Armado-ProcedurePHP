@@ -21,6 +21,111 @@ class classMysql
 		$this->relacionTabla="SELECT table_name, column_name, referenced_table_name, referenced_column_name FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE table_schema = '".$database."' AND referenced_table_name IS NOT NULL and table_name ="; 
 		$this->listarLlavePrimaria="SELECT COLUMN_NAME,COLUMN_KEY FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='".$database."' and COLUMN_KEY='PRI' and TABLE_NAME=";
 	}
+	private function descripcionCamposString($nombre_tabla){
+		$listColumn=array();
+		$contador=0;
+		$query=$this->pdo->query($this->StringColumna.' '.$this->database.'.'.$nombre_tabla);
+		if ($query->rowCount()>0) {
+			while ($array=$query->fetch()) {
+				$tipoDato=explode('(',$array['Type']);
+				if ($tipoDato[0]==='varchar' or $tipoDato[0]==='char') {					
+					$listColumn[$contador]['nombre_campo']=$array['Field'];
+					$contador=$contador+1;
+				}
+			}
+		}
+		return $listColumn;
+	}
+	private function buscadorCampoString(){
+		$listColumn=array();
+		$contador=0;
+		$nombre_tabla=' ';
+		$arrayTab=$this->ArrayTabla();
+		foreach($arrayTab as $datos){
+			$nombre_tabla=$datos['name'];
+			$query=$this->pdo->query($this->StringColumna.' '.$this->database.'.'.$nombre_tabla);
+			if ($query->rowCount()>0) {
+				while ($array=$query->fetch()) {
+					$tipoDato=explode('(',$array['Type']);
+					if ($tipoDato[0]==='varchar') {					
+						$listColumn[$contador]['nombre_campo']=$nombre_tabla.'#'.$array['Field'];
+						$contador=$contador+1;
+					}
+				}
+			}
+		}
+		return $listColumn;
+	}
+	private function columnasConsulta($tabla){
+		$query=$this->pdo->query($this->StringColumna." ".$this->database.".".$tabla);
+		$StringColumna=" ";
+		$cantidadFilas=$query->rowCount();
+		$contador=1;
+		if ($query->rowCount()>0) {
+			while ($arr=$query->fetch()) {
+				if ($contador==$cantidadFilas) {
+					$StringColumna=$StringColumna.$arr['Field'];
+				}else{
+					$StringColumna=$StringColumna.$arr['Field'].",";
+				}
+				$contador=$contador+1;
+			}
+		}
+		return $StringColumna;
+
+	}
+	public function buscadorGeneral($stringConsulta){
+		$listDatos=$this->ArrayTabla();
+		$listar_consulta=array();
+		$nombre_tabla=" ";
+		$nombre_campo=" ";
+		$where=" ";
+		$contadorConsulta=0;
+		$contadorWhere=1;
+		foreach ($listDatos as $array) {
+			$nombre_tabla=$array['name'];
+			$campos=$this->descripcionCamposString($nombre_tabla);
+			$columnas=$this->columnasConsulta($nombre_tabla);
+			$cantidadFilasCampos=count($campos);
+			foreach ($campos as $arrayC) {
+				if (!empty($arrayC['nombre_campo'])) {
+				
+					if ($contadorWhere<$cantidadFilasCampos) {
+						$where=$where."upper(".$arrayC['nombre_campo'].") like'%".strtoupper($stringConsulta)."%' or ";
+						
+					}else{
+						$where=$where."upper(".$arrayC['nombre_campo'].") like'%".strtoupper($stringConsulta)."%'";
+					}
+					$contadorWhere=$contadorWhere+1;
+
+				}
+			}
+			if ($where!=" ") {
+				$queryConsulta=$this->pdo->query("select ".$columnas." from ".$nombre_tabla." where ".$where."");
+				if ($queryConsulta->rowCount()>0) {
+					$queryColumnas=$this->pdo->query($this->StringColumna." ".$this->database.".".$nombre_tabla);
+					while ($datosTabla=$queryConsulta->fetch()) {
+
+						while ($listas=$queryColumnas->fetch()) {
+							$listar_consulta["'".$nombre_tabla."'"]["'".$listas['Field']."'"]=$datosTabla[$listas['Field']];
+							$contadorConsulta=$contadorConsulta+1;	
+
+						}
+
+					}
+					
+				}
+			}
+			$contadorWhere=1;
+			$where=" ";
+			$columnas=" ";
+			$nombre_tabla=" ";
+			unset($queryConsulta);
+			unset($queryColumnas);
+			$campos=array();
+		}
+		return $listar_consulta;
+	}
 	public function ArrayTabla(){
 		$query=$this->pdo->query($this->StringTabla." ".$this->database);
 		$totalFilas=$query->rowCount();
@@ -359,16 +464,28 @@ class classMysql
 
 include '../conexion_mysql.php';
 $mysql= new classMysql($pdo,'veterinary');
-$array=$mysql->ArrayTabla();
+/*$array=$mysql->ArrayTabla();
 $list=$mysql->arrayTablasRelacionadas('paciente');
 var_dump($list);
 $raios=0;
 foreach ($array as $arr) {
 	echo $arr['name']."\n";
 
-}
+}*/
 
-$mysql->crear_archivo_php();
+$array=$mysql->buscadorGeneral('leo');
+var_dump($array);
+echo "<br><br><br>";
+
+foreach($array as $producto => $detalles)
+{
+	echo "<h1> $producto </h1>";
+
+    foreach($detalles as $indice => $valor)
+	{
+		echo "<p> $indice:$valor </p>";
+	}
+}
 #$mysql->crear_am_sql();
 #$mysql->crear_l_sp();
 #$mysql->crear_c_sp();
